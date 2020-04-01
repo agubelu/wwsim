@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
-use rand::Rng;
+use rand::random;
+use rayon::prelude::*;
 
 mod utils;
 use utils::{read_country_data, read_closest_data, read_log};
@@ -33,8 +34,6 @@ fn main() {
     let closest_data = read_closest_data();
     let log_data = read_log();
 
-    let mut rng = rand::thread_rng();
-
     // Load the log data
     let mut remaining_after_log: HashSet<u16> = country_data.keys().cloned().collect();
     let mut owners_data_after_log: HashMap<u16, u16> = country_data.keys().map(|k| (*k, *k)).collect();
@@ -53,13 +52,13 @@ fn main() {
     }
 
     // Simulate the runs starting from the last log point
-    for _ in 0..n_runs {
+    (0..n_runs).into_par_iter().for_each(|_| {
         let mut epoch = log_data.len();
 
         let mut remaining = remaining_after_log.clone();
         let mut owners_data = owners_data_after_log.clone();
         let mut owns_data = owns_data_after_log.clone();
-        
+
         let owners_ref = &mut owners_data;
         let owns_ref = &mut owns_data;
         let remaining_ref = &mut remaining;
@@ -71,7 +70,7 @@ fn main() {
             let neighbors = compute_neighbors(owners_ref, &closest_data);
             let conqueror_id = find_conqueror_id(owners_ref, &neighbors);
 
-            if rng.gen::<f64>() < independence_chance {
+            if random::<f64>() < independence_chance {
                 independence(conqueror_id, owners_ref, owns_ref, remaining_ref);
             } else {
                 let conquered_id = find_conquered_id(conqueror_id, owners_ref, &neighbors);
@@ -80,7 +79,7 @@ fn main() {
         }
 
         println!("{}", country_data[remaining.iter().next().unwrap()].name);
-    }
+    })
 }
 
 ///////////////////////////////////////////////////////////////////////////////

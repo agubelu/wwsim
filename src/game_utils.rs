@@ -9,10 +9,10 @@ pub fn compute_neighbors<'a, 'b> (
     let mut neighbors = HashMap::new();
 
     for (country_id, owner_id) in owners_data.iter() {
-        let closest_id = closest_data[country_id].iter().cloned()
+        let closest_id = closest_data[country_id].iter()
             .filter(|neigh_id| owners_data[neigh_id] != *owner_id).next().unwrap();
-        neighbors.entry(*country_id).or_insert(HashSet::new()).insert(closest_id);
-        neighbors.entry(closest_id).or_insert(HashSet::new()).insert(*country_id);
+        neighbors.entry(*country_id).or_insert(HashSet::new()).insert(*closest_id);
+        neighbors.entry(*closest_id).or_insert(HashSet::new()).insert(*country_id);
     }
     
     neighbors
