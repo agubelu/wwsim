@@ -1,59 +1,40 @@
-use std::collections::{HashMap, HashSet};
-use std::env;
 use rand::random;
 use rayon::prelude::*;
+use std::collections::{HashMap, HashSet};
+use std::env;
 
 mod utils;
-use utils::{read_country_data, read_closest_data, read_log};
+use utils::{read_closest_data, read_country_data};
 
 mod game_utils;
 use game_utils::{compute_neighbors, find_conquered_id, find_conqueror_id};
 
+mod gamestate_reader;
+use gamestate_reader::read_gamestate;
 ///////////////////////////////////////////////////////////////////////////////
 
-pub enum LogType { Conquer, Indep }
-
-pub struct LogEntry {
-    kind: LogType,
-    country1: u16,
-    country2: u16,
-}
-
 pub struct Country {
-    id: u16,
-    name: String
+    name: String,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let n_runs: usize = args.get(1).expect("Provide the number of runs").parse().expect("Not a valid number");
+    let n_runs: usize = args
+        .get(1)
+        .expect("Provide the number of runs")
+        .parse()
+        .expect("Not a valid number");
 
     let country_data = read_country_data();
     let closest_data = read_closest_data();
-    let log_data = read_log();
 
-    // Load the log data
-    let mut remaining_after_log: HashSet<u16> = country_data.keys().cloned().collect();
-    let mut owners_data_after_log: HashMap<u16, u16> = country_data.keys().map(|k| (*k, *k)).collect();
-    let mut owns_data_after_log: HashMap<u16, u16> = country_data.keys().map(|k| (*k, 1)).collect();
-
-    let rem_ref_log = &mut remaining_after_log;
-    let owners_ref_log = &mut owners_data_after_log;
-    let owns_ref_log = &mut owns_data_after_log;
-
-    for log_elem in &log_data {
-        let (id1, id2) = (log_elem.country1, log_elem.country2);
-        match log_elem.kind {
-            LogType::Conquer => conquer(id1, id2, owners_ref_log, owns_ref_log, rem_ref_log),
-            LogType::Indep => independence(id1, owners_ref_log, owns_ref_log, rem_ref_log)
-        }
-    }
+    let (owners_data_after_log, owns_data_after_log, remaining_after_log, log_epoch) = read_gamestate();
 
     // Simulate the runs starting from the last log point
     (0..n_runs).into_par_iter().for_each(|_| {
-        let mut epoch = log_data.len();
+        let mut epoch = log_epoch;
 
         let mut remaining = remaining_after_log.clone();
         let mut owners_data = owners_data_after_log.clone();
@@ -74,7 +55,13 @@ fn main() {
                 independence(conqueror_id, owners_ref, owns_ref, remaining_ref);
             } else {
                 let conquered_id = find_conquered_id(conqueror_id, owners_ref, &neighbors);
-                conquer(conqueror_id, conquered_id, owners_ref, owns_ref, remaining_ref);
+                conquer(
+                    conqueror_id,
+                    conquered_id,
+                    owners_ref,
+                    owns_ref,
+                    remaining_ref,
+                );
             }
         }
 
@@ -84,11 +71,11 @@ fn main() {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-fn independence<'a, 'b> (
+fn independence<'a, 'b>(
     indep_terr_id: u16,
     owners_data: &'b mut HashMap<u16, u16>,
     owns_data: &'b mut HashMap<u16, u16>,
-    remaining: &'b mut HashSet<u16>
+    remaining: &'b mut HashSet<u16>,
 ) {
     let old_owner_id = owners_data[&indep_terr_id];
 
@@ -105,12 +92,12 @@ fn independence<'a, 'b> (
     }
 }
 
-fn conquer<'a, 'b> (
+fn conquer<'a, 'b>(
     conqueror_terr_id: u16,
     conquered_terr_id: u16,
     owners_data: &'b mut HashMap<u16, u16>,
     owns_data: &'b mut HashMap<u16, u16>,
-    remaining: &'b mut HashSet<u16>
+    remaining: &'b mut HashSet<u16>,
 ) {
     let original_conqueror_id = owners_data[&conqueror_terr_id];
     let original_conquered_id = owners_data[&conquered_terr_id];
